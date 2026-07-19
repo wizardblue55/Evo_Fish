@@ -12,7 +12,7 @@ numSteps = 200
 for step in range(numSteps):
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
-    env.mj_render()
+    env.render()
 
     if terminated or truncated:
         env.reset()
