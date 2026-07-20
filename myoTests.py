@@ -1,3 +1,5 @@
+import time
+
 from myosuite.utils import gym
 
 envName = "myoElbowPose1D6MRandom-v0"
@@ -13,9 +15,18 @@ for step in range(numSteps):
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
     env.unwrapped.mj_render()
+    time.sleep(0.02)
 
     if terminated or truncated:
         env.reset()
+
+print("Test loop finished. Close the render window to end the script.")
+try:
+    while True:
+        env.unwrapped.mj_render()
+        time.sleep(0.02)
+except Exception:
+    print("Render window closed.")
 
 env.close()
 print("Test complete - if a window appeared and moved, the install is good.")

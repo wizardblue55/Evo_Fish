@@ -1,0 +1,86 @@
+import gymnasium as gym
+import mujoco
+import numpy as np
+from gymnasium import spaces
+
+from fishConstructior import buildFishModelXml
+
+
+class FishEnv(gym.Env):
+
+
+    def __init__(self, genome=None, renderMode=None):
+        super().__init__()
+
+        modelXml = buildFishModelXml(genome)
+        self.model = mujoco.MjModel.from_xml_string(modelXml)
+        self.data = mujoco.MjData(self.model)
+        self.renderMode = renderMode
+        self.viewer = None
+
+        numJoints = self.model.nu  # number of actuators (4 here)
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(numJoints,), dtype=np.float32)
+
+        obsDim = numJoints * 2 + 3  # joint angles + joint velocities + head linear velocity
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obsDim,), dtype=np.float32)
+
+        self.maxEpisodeSteps = 500
+        self.currentStep = 0
+
+    def _getObs(self):
+        jointAngles = self.data.qpos[7:7 + self.model.nu]  # skip the 7 free-joint dof (3 pos + 4 quat)
+        jointVels = self.data.qvel[6:6 + self.model.nu]    # skip the 6 free-joint dof (3 lin + 3 ang)
+        headVel = self.data.qvel[0:3]
+        return np.concatenate([jointAngles, jointVels, headVel]).astype(np.float32)
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        mujoco.mj_resetData(self.model, self.data)
+        self.currentStep = 0
+        mujoco.mj_forward(self.model, self.data)
+        return self._getObs(), {}
+
+    def step(self, action):
+        self.data.ctrl[:] = np.clip(action, -1.0, 1.0)
+
+        xBefore = self.data.qpos[0]
+        mujoco.mj_step(self.model, self.data)
+        xAfter = self.data.qpos[0]
+
+        forwardReward = (xAfter - xBefore) / self.model.opt.timestep
+        effortPenalty = 0.001 * np.sum(np.square(action))
+        reward = forwardReward - effortPenalty
+
+        self.currentStep += 1
+        terminated = False
+        truncated = self.currentStep >= self.maxEpisodeSteps
+
+        return self._getObs(), reward, terminated, truncated, {}
+
+    def render(self):
+        if self.viewer is None:
+            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        self.viewer.sync()
+
+    def close(self):
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None
+
+
+if __name__ == "__main__":
+    import time
+
+    env = FishEnv()
+    obs, info = env.reset()
+
+    for step in range(500):
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, info = env.step(action)
+        env.render()
+        time.sleep(env.model.opt.timestep)
+
+        if terminated or truncated:
+            obs, info = env.reset()
+
+    env.close()
