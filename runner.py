@@ -15,8 +15,6 @@ class Runner:
         return self.env.action_space.sample()
 
     def runEpisode(self, maxSteps=None):
-        """Runs one episode to completion (or until maxSteps/window-close)
-        and returns (totalReward, stepsTaken)."""
         obs, info = self.env.reset()
         totalReward = 0.0
         step = 0
@@ -42,8 +40,6 @@ class Runner:
         return totalReward, step
 
     def runForever(self):
-        """Runs episodes back-to-back until the render window is closed
-        (or Ctrl+C in a headless run). Prints a summary after each one."""
         try:
             while True:
                 totalReward, steps = self.runEpisode()
@@ -54,3 +50,11 @@ class Runner:
             pass
         finally:
             self.env.close()
+
+
+if __name__ == "__main__":
+    from lePond import FishEnv
+
+    env = FishEnv()
+    runner = Runner(env, policy=None, render=True, realTime=True)
+    runner.runForever()
